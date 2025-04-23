@@ -6,7 +6,6 @@ import os
 
 from dotenv import load_dotenv
 from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +23,7 @@ app = App(
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
 )
 
+
 # Simple health check endpoint
 @app.command("/health")
 def health_check(ack, respond):
@@ -34,6 +34,7 @@ def health_check(ack, respond):
     ack()
     respond("SlackGPT bot is healthy and running!")
 
+
 # Error handler for global app errors
 @app.error
 def global_error_handler(error, logger):
@@ -42,6 +43,7 @@ def global_error_handler(error, logger):
     """
     logger.exception(f"Error: {error}")
 
+
 # Run the app using Socket Mode if running as a script
 if __name__ == "__main__":
     # For local development with Socket Mode
@@ -49,4 +51,5 @@ if __name__ == "__main__":
 else:
     # For production with HTTP mode and ASGI
     from slack_bolt.adapter.asgi import ASGIAdapter
-    api = ASGIAdapter(app) 
+
+    api = ASGIAdapter(app)
