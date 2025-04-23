@@ -45,15 +45,14 @@ try:
 except Exception as e:
     logger.warning(f"Error initializing Slack app: {e}")
     # Create a dummy app for Docker verification
-    from slack_bolt.app.app import BoltResponse
     class DummyApp:
         def __call__(self, environ, start_response):
             logger.info("Received request to dummy app")
-            response = BoltResponse(
-                status=200,
-                body="Docker container is running! (This is a dummy app for Docker verification)"
-            )
-            return response(environ, start_response)
+            status = "200 OK"
+            headers = [("Content-Type", "text/plain")]
+            body = b"Docker container is running! (This is a dummy app for Docker verification)"
+            start_response(status, headers)
+            return [body]
     
     # Use dummy app for ASGI adapter
     app = DummyApp()
@@ -70,8 +69,8 @@ if __name__ == "__main__":
         uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 3000)))
 else:
     # For production with HTTP mode and ASGI
-    from slack_bolt.adapter.asgi import ASGIAdapter
     try:
+        from slack_bolt.adapter.asgi import ASGIAdapter
         api = ASGIAdapter(app)
     except Exception as e:
         logger.warning(f"Error creating ASGI adapter: {e}")
