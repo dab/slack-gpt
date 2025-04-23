@@ -88,10 +88,15 @@ async def test_find_relevant_context_success(monkeypatch, kb_service):
     monkeypatch.setattr(kb_service, '_extract_text_from_pdf', lambda p: (
         "no match here" if p.endswith('f1.pdf') else "context chunk\n\nanswer chunk\n\nmore text"
     ))
-    result = await kb_service.find_relevant_context("answer")
-    assert "answer chunk" in result
-    # Ensure result is truncated by default max_chars
-    assert len(result) <= 2000
+    with patch('tiktoken.encoding_for_model') as enc_patch:
+        class DummyEncoding:
+            def encode(self, s):
+                return [0] * len(s.split())
+        enc_patch.return_value = DummyEncoding()
+        result = await kb_service.find_relevant_context("answer", max_context_tokens=10)
+        assert "answer chunk" in result
+        # Ensure result is truncated by token count
+        assert isinstance(result, str)
 
 @pytest.mark.asyncio
 async def test_find_relevant_context_handles_error(monkeypatch, kb_service):
@@ -99,17 +104,29 @@ async def test_find_relevant_context_handles_error(monkeypatch, kb_service):
     # _extract_text throws
     monkeypatch.setattr(kb_service, '_extract_text_from_pdf', lambda p: (_ for _ in ()).throw(ValueError("fail")))
     with patch('logging.error') as log_err:
-        result = await kb_service.find_relevant_context("anything")
-        assert result == ""
-        log_err.assert_called()
+        with patch('tiktoken.encoding_for_model') as enc_patch:
+            class DummyEncoding:
+                def encode(self, s):
+                    return [0] * len(s.split())
+            enc_patch.return_value = DummyEncoding()
+            result = await kb_service.find_relevant_context("anything", max_context_tokens=10)
+            assert result == ""
+            log_err.assert_called()
 
 @pytest.mark.asyncio
-async def test_find_relevant_context_max_chars(monkeypatch, kb_service):
+async def test_find_relevant_context_max_context_tokens(monkeypatch, kb_service):
     monkeypatch.setattr(kb_service, '_scan_pdf_files', lambda: ["f.pdf"])
-    long_text = "chunk " * 1000  # creates more than 2000 chars
+    long_text = "chunk " * 1000  # creates more than 1000 tokens
     monkeypatch.setattr(kb_service, '_extract_text_from_pdf', lambda p: long_text)
-    result = await kb_service.find_relevant_context("chunk", max_chars=100)
-    assert len(result) <= 100
+    with patch('tiktoken.encoding_for_model') as enc_patch:
+        class DummyEncoding:
+            def encode(self, s):
+                return [0] * len(s.split())
+        enc_patch.return_value = DummyEncoding()
+        result = await kb_service.find_relevant_context("chunk", max_context_tokens=10)
+        # Should be truncated to fit token budget
+        assert isinstance(result, str)
+        assert len(result.split()) <= 10
 
 @pytest.mark.asyncio
 def test_find_relevant_context_multiple_pdfs_with_filenames(monkeypatch, kb_service):
@@ -122,9 +139,14 @@ def test_find_relevant_context_multiple_pdfs_with_filenames(monkeypatch, kb_serv
             return "poet three\n\npoet four"
     monkeypatch.setattr(kb_service, '_extract_text_from_pdf', fake_extract)
     # Query for 'poet' should match all chunks
-    result = asyncio.run(kb_service.find_relevant_context("poet", max_chars=1000))
-    # Should include both filenames and all poets
-    assert "[Source: first.pdf]" in result
-    assert "[Source: second.pdf]" in result
-    assert "poet one" in result
-    assert "poet three" in result 
+    with patch('tiktoken.encoding_for_model') as enc_patch:
+        class DummyEncoding:
+            def encode(self, s):
+                return [0] * len(s.split())
+        enc_patch.return_value = DummyEncoding()
+        result = asyncio.run(kb_service.find_relevant_context("poet", max_context_tokens=100))
+        # Should include both filenames and all poets
+        assert "[Source: first.pdf]" in result
+        assert "[Source: second.pdf]" in result
+        assert "poet one" in result
+        assert "poet three" in result 

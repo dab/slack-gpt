@@ -29,6 +29,9 @@ PDF_DATA_DIR = os.getenv("PDF_DATA_DIR", "/app/data/pdfs") # Default to a path w
 APP_ENV = os.getenv("APP_ENV", "development") # e.g., development, production
 PORT = int(os.getenv("PORT", 3000))
 
+# --- Knowledge Base / OpenAI Context Configuration ---
+MAX_CONTEXT_TOKENS = int(os.getenv("MAX_CONTEXT_TOKENS", 7000))
+
 # Simple validation to ensure critical variables are set
 required_vars = [
     "SLACK_BOT_TOKEN", # Temporarily commented out for initial install -> Uncommented

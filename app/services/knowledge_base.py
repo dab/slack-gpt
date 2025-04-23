@@ -9,6 +9,8 @@ import re
 from typing import List, Dict
 
 import fitz  # PyMuPDF
+import tiktoken
+from app.utils.config import MAX_CONTEXT_TOKENS
 
 
 class KnowledgeBaseService:
@@ -59,36 +61,55 @@ class KnowledgeBaseService:
         self._text_cache[pdf_path] = text
         return text
 
-    async def find_relevant_context(self, question: str, max_chars: int = 500000, request_id: str = "") -> str:
+    async def find_relevant_context(self, question: str, max_context_tokens: int = None, request_id: str = "") -> str:
         """
         Finds and returns relevant text chunks from PDFs based on the question.
-        Aggregates from all PDFs, prefixes each chunk with its PDF filename, and truncates after all PDFs are processed.
+        Aggregates from all PDFs, prefixes each chunk with its PDF filename, and truncates based on token count.
         """
         log_message = f"Performing PDF search for question: {question}"
         if request_id:
             log_message += f" | request_id={request_id}"
         logging.info(log_message)
-        # Scan files without blocking
+
+        if max_context_tokens is None:
+            max_context_tokens = MAX_CONTEXT_TOKENS
+
+        # Use tiktoken encoding for gpt-4o-mini
+        try:
+            encoding = tiktoken.encoding_for_model("gpt-4o")
+        except Exception:
+            encoding = tiktoken.get_encoding("cl100k_base")
+
         pdf_files = await asyncio.to_thread(self._scan_pdf_files)
         keywords = set(re.findall(r"\w+", question.lower()))
-        relevant: list[str] = []
-        total_length = 0
+        relevant_chunks = []
+        chunk_token_counts = []
+
         # Collect all relevant chunks from all PDFs
         for pdf_path in pdf_files:
             try:
-                # Extract text without blocking
                 text = await asyncio.to_thread(self._extract_text_from_pdf, pdf_path)
-                # Simple chunking by paragraphs
                 chunks = text.split("\n\n")
                 for chunk in chunks:
                     low = chunk.lower()
                     if any(word in low for word in keywords):
-                        # Prefix with filename for traceability
                         chunk_with_source = f"[Source: {os.path.basename(pdf_path)}]\n{chunk.strip()}"
-                        relevant.append(chunk_with_source)
-                        total_length += len(chunk_with_source)
+                        tokens = len(encoding.encode(chunk_with_source))
+                        relevant_chunks.append(chunk_with_source)
+                        chunk_token_counts.append(tokens)
             except Exception as e:
                 logging.error(f"Error processing PDF {pdf_path}: {e}")
-        # Truncate after all PDFs are processed
-        result = "\n\n".join(relevant)
-        return result[:max_chars] 
+
+        # Select chunks until token budget is reached
+        selected_chunks = []
+        total_tokens = 0
+        for chunk, tokens in zip(relevant_chunks, chunk_token_counts):
+            if total_tokens + tokens > max_context_tokens:
+                logging.info(f"Context truncated at {total_tokens} tokens (limit: {max_context_tokens})")
+                break
+            selected_chunks.append(chunk)
+            total_tokens += tokens
+
+        result = "\n\n".join(selected_chunks)
+        logging.info(f"Selected {len(selected_chunks)} chunks, total tokens: {total_tokens}")
+        return result 

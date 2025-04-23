@@ -350,3 +350,13 @@ Acknowledging the PRD's flexibility for MVP, this architecture mandates minimal 
 *   **RAG:** Retrieval-Augmented Generation. An AI technique combining information retrieval (like searching documents) with text generation models.
 *   **TTL:** Time-To-Live. A mechanism that limits the lifespan of data in a cache or network.
 *   **Uvicorn:** A lightning-fast ASGI server implementation, using uvloop and httptools.
+
+### Token-based Context Selection
+
+- The `KnowledgeBaseService.find_relevant_context` method uses the `tiktoken` library to estimate the number of tokens in each relevant PDF chunk.
+- Chunks are selected until the total estimated token count approaches the `MAX_CONTEXT_TOKENS` limit (configurable via environment variable, default 7000).
+- This ensures the context sent to the OpenAI API fits within the model's context window.
+
+#### Configuration
+- `MAX_CONTEXT_TOKENS` is loaded from environment variables in `app/utils/config.py`.
+- The `tiktoken` dependency is required for this logic.
