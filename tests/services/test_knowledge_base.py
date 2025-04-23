@@ -109,4 +109,22 @@ async def test_find_relevant_context_max_chars(monkeypatch, kb_service):
     long_text = "chunk " * 1000  # creates more than 2000 chars
     monkeypatch.setattr(kb_service, '_extract_text_from_pdf', lambda p: long_text)
     result = await kb_service.find_relevant_context("chunk", max_chars=100)
-    assert len(result) <= 100 
+    assert len(result) <= 100
+
+@pytest.mark.asyncio
+def test_find_relevant_context_multiple_pdfs_with_filenames(monkeypatch, kb_service):
+    # Simulate two PDFs, both with relevant content
+    monkeypatch.setattr(kb_service, '_scan_pdf_files', lambda: ["first.pdf", "second.pdf"])
+    def fake_extract(path):
+        if path == "first.pdf":
+            return "poet one\n\npoet two"
+        else:
+            return "poet three\n\npoet four"
+    monkeypatch.setattr(kb_service, '_extract_text_from_pdf', fake_extract)
+    # Query for 'poet' should match all chunks
+    result = asyncio.run(kb_service.find_relevant_context("poet", max_chars=1000))
+    # Should include both filenames and all poets
+    assert "[Source: first.pdf]" in result
+    assert "[Source: second.pdf]" in result
+    assert "poet one" in result
+    assert "poet three" in result 

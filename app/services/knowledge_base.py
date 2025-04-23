@@ -62,14 +62,15 @@ class KnowledgeBaseService:
     async def find_relevant_context(self, question: str, max_chars: int = 2000) -> str:
         """
         Finds and returns relevant text chunks from PDFs based on the question.
+        Aggregates from all PDFs, prefixes each chunk with its PDF filename, and truncates after all PDFs are processed.
         """
         logging.info(f"Finding relevant context for question: {question}")
         # Scan files without blocking
         pdf_files = await asyncio.to_thread(self._scan_pdf_files)
         keywords = set(re.findall(r"\w+", question.lower()))
-        relevant: List[str] = []
+        relevant: list[str] = []
         total_length = 0
-
+        # Collect all relevant chunks from all PDFs
         for pdf_path in pdf_files:
             try:
                 # Extract text without blocking
@@ -79,13 +80,12 @@ class KnowledgeBaseService:
                 for chunk in chunks:
                     low = chunk.lower()
                     if any(word in low for word in keywords):
-                        relevant.append(chunk.strip())
-                        total_length += len(chunk)
-                        if total_length >= max_chars:
-                            break
-                if total_length >= max_chars:
-                    break
+                        # Prefix with filename for traceability
+                        chunk_with_source = f"[Source: {os.path.basename(pdf_path)}]\n{chunk.strip()}"
+                        relevant.append(chunk_with_source)
+                        total_length += len(chunk_with_source)
             except Exception as e:
                 logging.error(f"Error processing PDF {pdf_path}: {e}")
+        # Truncate after all PDFs are processed
         result = "\n\n".join(relevant)
         return result[:max_chars] 
