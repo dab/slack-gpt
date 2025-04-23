@@ -26,9 +26,9 @@ logger.info("SlackGPT application starting...")
 # Import config variables first
 from app.utils import config
 
-from slack_bolt import App
+from slack_bolt.async_app import AsyncApp
 # Add OAuth related imports
-from slack_bolt.oauth.oauth_settings import OAuthSettings
+from slack_bolt.oauth.async_oauth_settings import AsyncOAuthSettings
 # Reverted paths for v1.18 -> Corrected paths using slack_sdk for v1.18
 from slack_sdk.oauth.installation_store.file import FileInstallationStore
 from slack_sdk.oauth.state_store.file import FileOAuthStateStore
@@ -49,45 +49,49 @@ try:
     bot_scopes = ["commands", "chat:write", "app_mentions:read"]
 
     # Configure OAuth settings explicitly
-    oauth_settings = OAuthSettings(
+    oauth_settings = AsyncOAuthSettings(
         client_id=config.SLACK_CLIENT_ID,
         client_secret=config.SLACK_CLIENT_SECRET,
-        # state_secret=config.SLACK_STATE_SECRET, # Removed: Not a valid arg in v1.18.0; handled by state_store
         scopes=bot_scopes,
-        # Use default file stores (paths relative to execution dir: /app inside container)
-        # Corrected paths for base_dir to match volume mount
         installation_store=FileInstallationStore(base_dir="/app/data/installation"),
         state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="/app/data/state"),
-        # Optional: Define specific install path, redirect URI path etc. if needed
-        # install_path="/slack/install",
-        # redirect_uri_path="/slack/oauth_redirect",
     )
 
-    app = App(
+    app = AsyncApp(
         # Initialize using signing secret and explicit OAuth settings
-        # token argument is ignored when oauth_settings are provided
         signing_secret=config.SLACK_SIGNING_SECRET,
         oauth_settings=oauth_settings,
-        # token=config.SLACK_BOT_TOKEN, # Not needed here
     )
 
     # Simple health check endpoint
     @app.command("/health")
-    def health_check(ack, respond):
+    async def health_check(ack, respond):
         """
         Health check command to verify the bot is running.
         This is for testing purposes only.
         """
-        ack()
-        respond("SlackGPT bot is healthy and running!")
+        await ack()
+        await respond("SlackGPT bot is healthy and running!")
+
+    # Import and register /ask command handler
+    from app.handlers.ask_command import handle_ask_command
+    @app.command("/ask")
+    async def ask_command_handler(ack, command, respond, logger):
+        await handle_ask_command(ack, command, respond, logger)
+
+    # Import and register /help command handler
+    from app.handlers.help_command import handle_help_command
+    @app.command("/help")
+    async def help_command_handler(ack, command, logger):
+        await handle_help_command(ack, command, logger)
 
     # Error handler for global app errors
     @app.error
-    def global_error_handler(error, logger):
+    async def global_error_handler(error, body, logger):
         """
-        Global error handler for the Slack Bolt app.
+        Global error handler for the Slack Bolt app (async).
         """
-        logger.exception(f"Error: {error}")
+        logger.exception(f"Error: {error} | Body: {body}")
 
 except Exception as e:
     # If App init fails, log critical error and potentially exit or use a minimal error app
@@ -106,7 +110,7 @@ except Exception as e:
 # Run the app using Socket Mode if running as a script
 if __name__ == "__main__":
     # For local development with Socket Mode
-    if isinstance(app, App):
+    if isinstance(app, AsyncApp):
         # Use PORT from config module
         app.start(port=config.PORT)
     else:
@@ -115,8 +119,7 @@ if __name__ == "__main__":
         import uvicorn
         # Use PORT from config module
         uvicorn.run(app, host="0.0.0.0", port=config.PORT)
-else:
-    # For production with HTTP mode and ASGI
-    # Use the ASGIAdapter/SlackRequestHandler to make the Bolt App compatible with Uvicorn
-    from slack_bolt.adapter.asgi import SlackRequestHandler # Use SlackRequestHandler for slack-bolt v1.18
-    api = SlackRequestHandler(app)
+
+# Always create the ASGI adapter at module level for Uvicorn
+from slack_bolt.adapter.asgi.async_handler import AsyncSlackRequestHandler
+api = AsyncSlackRequestHandler(app)
