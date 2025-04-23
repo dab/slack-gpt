@@ -3,7 +3,7 @@
 
 import logging
 # Import setup_logging from the new config module
-from app.utils.logging_config import setup_logging
+from utils.logging_config import setup_logging
 
 # Call logging setup immediately after imports
 setup_logging()
@@ -24,7 +24,7 @@ logger.info("SlackGPT application starting...")
 # from dotenv import load_dotenv
 
 # Import config variables first
-from app.utils import config
+from utils import config
 
 from slack_bolt.async_app import AsyncApp
 # Add OAuth related imports
@@ -74,13 +74,13 @@ try:
         await respond("SlackGPT bot is healthy and running!")
 
     # Import and register /ask command handler
-    from app.handlers.ask_command import handle_ask_command
+    from handlers.ask_command import handle_ask_command
     @app.command("/ask")
-    async def ask_command_handler(ack, command, respond, logger):
-        await handle_ask_command(ack, command, respond, logger)
+    async def ask_command_handler(ack, command, respond):
+        await handle_ask_command(ack, command, respond)
 
     # Import and register /help command handler
-    from app.handlers.help_command import handle_help_command
+    from handlers.help_command import handle_help_command
     @app.command("/help")
     async def help_command_handler(ack, command, logger):
         await handle_help_command(ack, command, logger)
