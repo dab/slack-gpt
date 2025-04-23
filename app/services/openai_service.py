@@ -9,7 +9,7 @@ from typing import Optional
 
 # Basic logging configuration (ensure this is set up elsewhere properly in a real app)
 # logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 class OpenAIService:
     """
@@ -20,12 +20,12 @@ class OpenAIService:
         self.client = AsyncOpenAI(
             api_key=os.getenv('OPENAI_API_KEY')
         )
-        logging.info("OpenAI service initialized.") # Corrected spacing
+        logger.info("OpenAI service initialized.") # Corrected spacing
 
-    async def get_answer(self, question: str, context: str) -> Optional[str]:
+    async def get_answer(self, question: str, context: str, request_id: str = "") -> Optional[str]:
         """Gets an answer from the OpenAI model based on the question and context."""
         if not self.client:
-            logging.error("OpenAI client not initialized.")
+            logger.error("OpenAI client not initialized.")
             return None
 
         messages = [
@@ -34,7 +34,10 @@ class OpenAIService:
         ]
 
         try:
-            logging.info(f"Calling OpenAI API with model gpt-4o-mini. Question: {question[:70]}...") # Shortened log message
+            log_message = f"Calling OpenAI API with model gpt-4o-mini."
+            if request_id:
+                log_message += f" | request_id={request_id}"
+            logger.info(log_message)
             response = await self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
@@ -42,11 +45,11 @@ class OpenAIService:
                 temperature=0.7,
             )
             answer = response.choices[0].message.content
-            logging.info("Successfully received answer from OpenAI API.")
+            logger.info("Successfully received answer from OpenAI API.")
             return answer
         except APIError as e:
-            logging.error(f"OpenAI API error occurred: {e}")
+            logger.error(f"OpenAI API error occurred: {e}")
             return None
         except Exception as e:
-            logging.error(f"An unexpected error occurred during OpenAI API call: {e}")
+            logger.error(f"An unexpected error occurred during OpenAI API call: {e}")
             return None 

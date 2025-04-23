@@ -1,10 +1,15 @@
+import logging
 from typing import Any, Dict
 
+logger = logging.getLogger(__name__)
 
-async def handle_help_command(ack, command: Dict[str, Any], logger):
+
+async def handle_help_command(ack, command: Dict[str, Any]):
     """
     Handler for the /help slash command. Returns a formatted help message using Slack Block Kit.
     """
+    user_id = command.get('user_id', 'unknown')
+    logger.info(f"/help command received | user_id={user_id}")
     try:
         help_blocks = [
             {

@@ -59,12 +59,15 @@ class KnowledgeBaseService:
         self._text_cache[pdf_path] = text
         return text
 
-    async def find_relevant_context(self, question: str, max_chars: int = 2000) -> str:
+    async def find_relevant_context(self, question: str, max_chars: int = 500000, request_id: str = "") -> str:
         """
         Finds and returns relevant text chunks from PDFs based on the question.
         Aggregates from all PDFs, prefixes each chunk with its PDF filename, and truncates after all PDFs are processed.
         """
-        logging.info(f"Finding relevant context for question: {question}")
+        log_message = f"Performing PDF search for question: {question}"
+        if request_id:
+            log_message += f" | request_id={request_id}"
+        logging.info(log_message)
         # Scan files without blocking
         pdf_files = await asyncio.to_thread(self._scan_pdf_files)
         keywords = set(re.findall(r"\w+", question.lower()))
