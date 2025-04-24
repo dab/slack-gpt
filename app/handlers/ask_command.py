@@ -5,10 +5,10 @@ import json
 from slack_bolt.async_app import AsyncAck, AsyncRespond
 
 # Use relative imports because the app root is the Python path in Docker
-from services.redis_service import RedisService
-from services.knowledge_base import KnowledgeBaseService
-from services.openai_service import OpenAIService
-from utils import config
+from app.services.redis_service import RedisService
+from app.services.knowledge_base import KnowledgeBaseService
+from app.services.openai_service import OpenAIService
+from app.utils import config
 import datetime
 
 logger = logging.getLogger(__name__)
